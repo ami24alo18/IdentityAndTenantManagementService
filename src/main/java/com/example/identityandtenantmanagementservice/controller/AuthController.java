@@ -1,62 +1,63 @@
-
 package com.example.identityandtenantmanagementservice.controller;
 
-import com.example.identityandtenantmanagementservice.entity.User;
+import com.example.identityandtenantmanagementservice.dto.LoginRequest;
+import com.example.identityandtenantmanagementservice.dto.LoginResponse;
+import com.example.identityandtenantmanagementservice.dto.RegisterTenantRequest;
+import com.example.identityandtenantmanagementservice.model.Tenant;
+import com.example.identityandtenantmanagementservice.model.User;
+import com.example.identityandtenantmanagementservice.model.UserRole;
+import com.example.identityandtenantmanagementservice.security.JwtUtil;
+import com.example.identityandtenantmanagementservice.service.TenantService;
 import com.example.identityandtenantmanagementservice.service.UserService;
-import com.example.identityandtenantmanagementservice.util.JwtUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthController {
 
-    @Autowired
-    private UserService userService;
+    private final TenantService tenantService;
+    private final UserService userService;
+    private final JwtUtil jwtUtil;
 
-    @Autowired
-    private JwtUtil jwtUtil;
+    public AuthController(TenantService tenantService, UserService userService, JwtUtil jwtUtil) {
+        this.tenantService = tenantService;
+        this.userService = userService;
+        this.jwtUtil = jwtUtil;
+    }
 
-    @Operation(summary = "Register a new user")
+    @PostMapping("/register-tenant")
+    @Operation(summary = "Register a new tenant")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "User registered successfully"),
+            @ApiResponse(responseCode = "201", description = "Tenant registered successfully"),
             @ApiResponse(responseCode = "400", description = "Invalid input")
     })
-    @PostMapping("/register")
-    public ResponseEntity<User> register(@RequestBody User user) {
-        User registeredUser = userService.registerUser(user);
-        return new ResponseEntity<>(registeredUser, HttpStatus.CREATED);
+    public ResponseEntity<Void> registerTenant(@RequestBody RegisterTenantRequest request) {
+        Tenant tenant = tenantService.createTenant(request.getTenantId(), request.getCompanyName());
+        userService.createUser(tenant, request.getAdminUsername(), request.getAdminPassword(), request.getAdminEmail(), UserRole.COMPANY_ADMIN);
+        return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
-    @Operation(summary = "Authenticate a user and get a JWT token")
+    @PostMapping("/login")
+    @Operation(summary = "User login")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Authentication successful"),
+            @ApiResponse(responseCode = "200", description = "Login successful"),
             @ApiResponse(responseCode = "401", description = "Invalid credentials")
     })
-    @PostMapping("/login")
-    public ResponseEntity<String> login(@RequestBody LoginRequest loginRequest) {
-        // This is a simplified login. In a real app, you'd validate the password.
-        String token = jwtUtil.generateToken(loginRequest.getUsername(), loginRequest.getTenantId());
-        return ResponseEntity.ok(token);
-    }
-
-    // Inner class for login request payload
-    static class LoginRequest {
-        private String username;
-        private Long tenantId;
-        private String password;
-
-        // Getters and Setters
-        public String getUsername() { return username; }
-        public void setUsername(String username) { this.username = username; }
-        public Long getTenantId() { return tenantId; }
-        public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
-        public String getPassword() { return password; }
-        public void setPassword(String password) { this.password = password; }
+    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request) {
+        User user = userService.findByTenantIdAndUsername(request.getTenantId(), request.getUsername());
+        if (userService.checkPassword(request.getPassword(), user.getPasswordHash())) {
+            String token = jwtUtil.generateToken(user);
+            return ResponseEntity.ok(new LoginResponse(token));
+        } else {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
     }
 }

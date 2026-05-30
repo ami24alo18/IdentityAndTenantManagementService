@@ -1,10 +1,7 @@
-
 package com.example.identityandtenantmanagementservice;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.context.annotation.Bean;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 @SpringBootApplication
 public class IdentityAndTenantManagementServiceApplication {
@@ -13,8 +10,4 @@ public class IdentityAndTenantManagementServiceApplication {
         SpringApplication.run(IdentityAndTenantManagementServiceApplication.class, args);
     }
 
-    @Bean
-    public BCryptPasswordEncoder bCryptPasswordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
 }
